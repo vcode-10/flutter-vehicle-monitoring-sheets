@@ -4,8 +4,13 @@ import 'package:http/http.dart' as http;
 import '../models/report_model.dart';
 
 class ReportProvider with ChangeNotifier {
+  // --- STATE ---
+  // Variabel privat untuk menyimpan daftar laporan dan status loading.
   List<Report> _reports = [];
   bool _isLoading = false;
+
+  // --- GETTERS ---
+  // Cara aman bagi UI untuk mengakses state tanpa bisa mengubahnya langsung.
   List<Report> get reports => _reports;
   bool get isLoading => _isLoading;
 
@@ -16,25 +21,23 @@ class ReportProvider with ChangeNotifier {
       'https://script.google.com/macros/s/AKfycby8x49wFg9uFBaK1FUv-ETA6SaB6fdZ0h0OoAjnKcFwJmUUVY78L77y1DzjgYf6bB6p/exec';
 
   // --- ACTIONS ---
+
   /// Mengambil semua laporan yang diinput pada hari ini dari Google Sheet.
-  Future<void> fetchTodaysReports() async {
+  Future<void> fetchTodaysReports(String driverName) async {
     _isLoading = true;
+    _reports = []; // Kosongkan list sebelum fetch data baru
     notifyListeners();
 
-    final url = Uri.parse(
-      '$_baseUrl?action=getTodaysReports',
-    ); 
+    // Tambahkan parameter driverName ke URL
+    final url = Uri.parse('$_baseUrl?action=getTodaysReports&driverName=$driverName');
 
     try {
       final response = await http.get(url);
-
       if (response.statusCode == 200) {
         final List<dynamic> extractedData = json.decode(response.body);
         _reports = extractedData.map((item) => Report.fromJson(item)).toList();
       } else {
-        throw Exception(
-          'Failed to load data. Status Code: ${response.statusCode}',
-        );
+        throw Exception('Gagal memuat laporan.');
       }
     } catch (error) {
       print("Error fetching reports: $error");

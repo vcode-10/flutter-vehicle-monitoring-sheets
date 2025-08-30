@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../models/fuel_type_model.dart';
+import '../providers/data_provider.dart';
 import '../providers/report_provider.dart';
+import '../providers/selection_provider.dart';
 
 class FormInputScreen extends StatefulWidget {
   const FormInputScreen({super.key});
@@ -15,153 +17,130 @@ class FormInputScreen extends StatefulWidget {
 
 class _FormInputScreenState extends State<FormInputScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _picker = ImagePicker();
-
-  final _idKendaraanController = TextEditingController();
-  final _namaDriverController = TextEditingController();
   final _odometerController = TextEditingController();
-  final _jenisBBMController = TextEditingController();
-  final _jumlahLiterController = TextEditingController();
-  final _biayaController = TextEditingController();
+  final _literController = TextEditingController();
 
+  FuelType? _selectedFuelType;
+  int _calculatedCost = 0;
+  
   File? _imageFile;
-  bool _isLoading = false;
+  final _picker = ImagePicker();
+  bool _isSubmitting = false;
 
   @override
-  void dispose() {
-    _idKendaraanController.dispose();
-    _namaDriverController.dispose();
-    _odometerController.dispose();
-    _jenisBBMController.dispose();
-    _jumlahLiterController.dispose();
-    _biayaController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _literController.addListener(_calculateCost);
+  }
+
+  void _calculateCost() {
+    if (_selectedFuelType != null && _literController.text.isNotEmpty) {
+      final liters = double.tryParse(_literController.text) ?? 0.0;
+      setState(() {
+        _calculatedCost = (liters * _selectedFuelType!.hargaPerLiter).round();
+      });
+    }
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    try {
-      final pickedFile = await _picker.pickImage(
-        source: source,
-        imageQuality: 50,
-        maxWidth: 800,
-      );
-
-      if (pickedFile != null) {
-        setState(() {
-          _imageFile = File(pickedFile.path);
-        });
-      }
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick image: ${e.message}')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('An error occurred: $e')));
+    final pickedFile = await _picker.pickImage(
+      source: source,
+      imageQuality: 50,
+      maxWidth: 800,
+    );
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
     }
   }
 
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Wrap(
-            children: <Widget>[
-              ListTile(
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: <Widget>[
+            ListTile(
                 leading: const Icon(Icons.photo_library),
-                title: const Text('Choose from Gallery'),
+                title: const Text('Pilih dari Galeri'),
                 onTap: () {
-                  Navigator.of(context).pop();
                   _pickImage(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera),
-                title: const Text('Take with Camera'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _pickImage(ImageSource.camera);
-                },
-              ),
-            ],
-          ),
-        );
-      },
+                  Navigator.of(ctx).pop();
+                }),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Ambil dengan Kamera'),
+              onTap: () {
+                _pickImage(ImageSource.camera);
+                Navigator.of(ctx).pop();
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate() || _imageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all fields and provide a photo.'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Semua field dan foto wajib diisi.'), backgroundColor: Colors.red),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() { _isSubmitting = true; });
 
     try {
+      // Konversi gambar ke base64
       final bytes = await _imageFile!.readAsBytes();
       String base64Image = base64Encode(bytes);
       String mimeType = _imageFile!.path.split('.').last;
 
-      Map<String, dynamic> data = {
-        'id_kendaraan': _idKendaraanController.text,
-        'nama_driver': _namaDriverController.text,
+      final selection = Provider.of<SelectionProvider>(context, listen: false);
+      final reportData = {
+        'id_kendaraan': selection.selectedVehicle!.idKendaraan,
+        'nama_driver': selection.selectedDriver!.namaSopir,
         'odometer': int.parse(_odometerController.text),
-        'jenis_bbm': _jenisBBMController.text,
-        'jumlah_liter': double.parse(_jumlahLiterController.text),
-        'biaya': int.parse(_biayaController.text),
+        'jenis_bbm': _selectedFuelType!.jenisBbm,
+        'jumlah_liter': double.parse(_literController.text),
+        'biaya': _calculatedCost,
+        // Kirim data gambar
         'foto_base64': base64Image,
         'foto_mime_type': 'image/$mimeType',
       };
 
+      await Provider.of<ReportProvider>(context, listen: false).submitReport(reportData);
+      
       if (!mounted) return;
-      await Provider.of<ReportProvider>(
-        context,
-        listen: false,
-      ).submitReport(data);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Laporan berhasil dikirim!'), backgroundColor: Colors.green,));
+      Navigator.of(context).pop();
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Report submitted successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // 4. Reset form
-     Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mempersiapkan data: $error'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $error'), backgroundColor: Colors.red,));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+       if (mounted) {
+         setState(() { _isSubmitting = false; });
+       }
     }
+  }
+  
+  @override
+  void dispose() {
+    _odometerController.dispose();
+    _literController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final selection = Provider.of<SelectionProvider>(context);
+    final fuelTypes = Provider.of<DataProvider>(context).fuelTypes;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Input Report Form'), centerTitle: true),
+      appBar: AppBar(title: const Text('Input Laporan BBM')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -169,47 +148,48 @@ class _FormInputScreenState extends State<FormInputScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
-                controller: _idKendaraanController,
-                decoration: const InputDecoration(labelText: 'Vehicle ID'),
-                validator: (v) => v!.isEmpty ? 'This field is required' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _namaDriverController,
-                decoration: const InputDecoration(labelText: 'Driver Name'),
-                validator: (v) => v!.isEmpty ? 'This field is required' : null,
-              ),
-              const SizedBox(height: 12),
+              Text('Sopir: ${selection.selectedDriver?.namaSopir ?? ''}', style: const TextStyle(fontSize: 16)),
+              const SizedBox(height: 8),
+              Text('Kendaraan: ${selection.selectedVehicle?.idKendaraan ?? ''}', style: const TextStyle(fontSize: 16)),
+              const Divider(height: 30),
+
               TextFormField(
                 controller: _odometerController,
                 decoration: const InputDecoration(labelText: 'Odometer (KM)'),
                 keyboardType: TextInputType.number,
-                validator: (v) => v!.isEmpty ? 'This field is required' : null,
+                validator: (v) => v!.isEmpty ? 'Wajib diisi' : null,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _jenisBBMController,
-                decoration: const InputDecoration(labelText: 'Fuel Type'),
-                validator: (v) => v!.isEmpty ? 'This field is required' : null,
+              const SizedBox(height: 16),
+
+             DropdownButtonFormField<FuelType>(
+                value: _selectedFuelType,
+                hint: const Text('Pilih Jenis BBM'),
+                items: fuelTypes.map((FuelType fuel) {
+                  return DropdownMenuItem<FuelType>(
+                    value: fuel,
+                    child: Text('${fuel.jenisBbm} (Rp ${fuel.hargaPerLiter}/L)'),
+                  );
+                }).toList(),
+                onChanged: (FuelType? newValue) {
+                  setState(() {
+                    _selectedFuelType = newValue;
+                  });
+                  _calculateCost();
+                },
+                validator: (v) => v == null ? 'BBM harus dipilih' : null,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _jumlahLiterController,
-                decoration: const InputDecoration(labelText: 'Liters'),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                validator: (v) => v!.isEmpty ? 'This field is required' : null,
+              const SizedBox(height: 16),
+               TextFormField(
+                controller: _literController,
+                decoration: const InputDecoration(labelText: 'Jumlah Liter'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                validator: (v) => v!.isEmpty ? 'Wajib diisi' : null,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _biayaController,
-                decoration: const InputDecoration(labelText: 'Cost (Rp)'),
-                keyboardType: TextInputType.number,
-                validator: (v) => v!.isEmpty ? 'This field is required' : null,
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+              
+              Text('Total Biaya: Rp $_calculatedCost', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              
               Container(
                 height: 200,
                 width: double.infinity,
@@ -219,35 +199,24 @@ class _FormInputScreenState extends State<FormInputScreen> {
                   color: Colors.grey.shade100,
                 ),
                 child: _imageFile != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(_imageFile!, fit: BoxFit.cover),
-                      )
-                    : const Center(
-                        child: Text(
-                          'No photo selected',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
+                    ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_imageFile!, fit: BoxFit.cover))
+                    : const Center(child: Text('Foto Bukti Belum Dipilih', style: TextStyle(color: Colors.grey))),
               ),
               const SizedBox(height: 8),
-
               ElevatedButton.icon(
                 onPressed: _showImagePickerOptions,
                 icon: const Icon(Icons.camera_alt),
-                label: const Text('Take/Choose Photo'),
+                label: const Text('Ambil/Pilih Foto Bukti'),
               ),
-
-              const SizedBox(height: 24),
-              _isLoading
+              
+              const SizedBox(height: 30),
+              
+              _isSubmitting
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
                       onPressed: _submitForm,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16.0),
-                        textStyle: const TextStyle(fontSize: 16),
-                      ),
-                      child: const Text('SUBMIT REPORT'),
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      child: const Text('SUBMIT'),
                     ),
             ],
           ),
