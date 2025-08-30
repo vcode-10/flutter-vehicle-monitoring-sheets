@@ -1,12 +1,7 @@
-# flutter_vehicle_monitoring_sheets
+# Aplikasi Laporan Monitoring Kendaraan & BBM v3.0
 
-<!-- README UNTUK VERSI 2.0 (VERSI TERBARU) -->
-
-# Aplikasi Manajemen Perjalanan v2.0
-
-> Aplikasi Flutter komprehensif untuk manajemen perjalanan harian, dari awal hingga akhir, dengan pencatatan log BBM terintegrasi dan dashboard dinamis.
-
-
+> Sebuah aplikasi mobile modern berbasis Flutter untuk manajemen perjalanan harian, pencatatan konsumsi bahan bakar, dan pelaporan, didukung oleh Google Sheets sebagai database.
+![Banner](assets/pages/banner.png) 
 ---
 
 ## ✨ Fitur Utama
@@ -26,7 +21,7 @@
 - **Frontend**: Flutter
 - **State Management**: Provider
 - **Backend API**: Google Apps Script (dijalankan sebagai Web App)
-- **Database**: Google Sheets (Multi-sheet: `PerjalananHarian`, `Logs`, `Kendaraan`, `Sopir`, `Rute`)
+- **Database**: Google Sheets
 - **Penyimpanan File**: Google Drive
 
 ---
@@ -105,12 +100,17 @@ Buat satu file Google Sheet baru. Di dalamnya, buat 5 sheet (tab) dengan nama da
 
 ---
 
+## 🖼️ Galeri Aplikasi
+
+| Halaman Seleksi (Light) | Dashboard (Dark) | Form Input |
+| :--- | :--- | :--- |
+| ![Selection Screens](assets/pages/selection_screen.png) | ![Dashboard Screens](assets/pages/dashboard_screen.png) | ![Input Screens](assets/pages/input_screen.png) |
+
+---
+
 ## 💡 Potensi Pengembangan
 
 - **Dashboard Web**: Membuat dashboard web untuk admin guna melihat analitik dan laporan dari semua sopir.
 - **Notifikasi**: Memberikan notifikasi pengingat jika sopir lupa menyelesaikan perjalanan di akhir hari.
 - **Manajemen User**: Menambahkan peran (Admin, Manajer, Sopir) dengan hak akses yang berbeda.
 - **Riwayat Perjalanan**: Membuat halaman baru untuk melihat riwayat semua perjalanan yang pernah dilakukan, tidak hanya hari ini.
-
----
----
